@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+matplotlib.use("Qt5Agg")
 from PyQt5.QtWidgets import QDialog, QHBoxLayout, QVBoxLayout, QPushButton, QLabel, QFileDialog, QTableWidget, QTableWidgetItem, QLineEdit
 from PyQt5.QtCore import Qt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
