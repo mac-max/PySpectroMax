@@ -1,18 +1,16 @@
-from PyQt6.QtWidgets import QDialog, QSlider, QCheckBox, QFormLayout, QSpinBox, QPushButton, QDoubleSpinBox
+from PyQt5.QtWidgets import QDialog, QSlider, QCheckBox, QFormLayout, QSpinBox, QPushButton, QDoubleSpinBox
 import numpy as np
-# Weitere Importe, falls notwendig
 
 class CameraSettingsDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setStyleSheet("background-color: #1e1e1e; color: white;")
         self.setWindowTitle("Kameraeinstellungen")
         self.setGeometry(200, 200, 300, 500)
         self.parent = parent
         self.initUI()
 
-
     def initUI(self):
-        # layout = QVBoxLayout()
         form_layout = QFormLayout()
 
         # Belichtungszeit
@@ -55,27 +53,23 @@ class CameraSettingsDialog(QDialog):
 
         # Bild spiegeln
         self.mirror_checkbox = QCheckBox("Horizontal spiegeln")
-        self.mirror_checkbox.setChecked(self.parent.mirror)  # Annahme: self.parent besitzt ein Attribut 'mirror'
+        self.mirror_checkbox.setChecked(self.parent.mirror)
         self.mirror_checkbox.stateChanged.connect(self.toggle_mirror)
         form_layout.addRow(self.mirror_checkbox)
 
         # HDR-Einstellungen:
-        # HDR Min. Belichtung
         self.hdr_min_exposure_input = QSpinBox()
         self.hdr_min_exposure_input.setRange(-10, 1)
-        # Standardwert aus der Hauptanwendung oder Default -10
         self.hdr_min_exposure_input.setValue(getattr(self.parent, "hdr_min_exposure", -10))
         self.hdr_min_exposure_input.valueChanged.connect(self.update_hdr_settings)
         form_layout.addRow("HDR Min. Belichtung:", self.hdr_min_exposure_input)
 
-        # HDR Max. Belichtung
         self.hdr_max_exposure_input = QSpinBox()
         self.hdr_max_exposure_input.setRange(-10, 1)
         self.hdr_max_exposure_input.setValue(getattr(self.parent, "hdr_max_exposure", 1))
         self.hdr_max_exposure_input.valueChanged.connect(self.update_hdr_settings)
         form_layout.addRow("HDR Max. Belichtung:", self.hdr_max_exposure_input)
 
-        # Anzahl Bilder pro Belichtungsstufe für HDR
         self.hdr_num_frames_input = QSpinBox()
         self.hdr_num_frames_input.setRange(1, 20)
         self.hdr_num_frames_input.setValue(getattr(self.parent, "hdr_num_frames", 3))
@@ -98,17 +92,12 @@ class CameraSettingsDialog(QDialog):
         self.intensity_max_input.setValue(self.parent.fixed_intensity_max)
         self.intensity_max_input.setEnabled(not self.parent.auto_scale_intensity)
         self.intensity_max_input.valueChanged.connect(self.update_intensity_max)
-
-        form_layout.addRow(self.auto_scale_checkbox)
         form_layout.addRow("Maximale Intensität:", self.intensity_max_input)
 
-        # --- Neue Felder für die Wellenlängen-Limits ---
-        # Diese Felder sollen nur relevant sein, wenn eine Kalibration vorliegt.
-        # Du kannst hier Standardwerte setzen, z. B. 400 nm und 700 nm.
+        # Neue Felder für Wellenlängen-Limits
         self.wavelength_min_input = QDoubleSpinBox()
         self.wavelength_min_input.setRange(0, 10000)
         self.wavelength_min_input.setDecimals(2)
-        # Falls die Haupt-GUI schon einen Wert hat, verwende diesen, ansonsten Default:
         self.wavelength_min_input.setValue(getattr(self.parent, 'wavelength_min', 400.0))
         self.wavelength_min_input.valueChanged.connect(self.update_wavelength_limits)
         form_layout.addRow("Min. Wellenlänge (nm):", self.wavelength_min_input)
@@ -119,7 +108,6 @@ class CameraSettingsDialog(QDialog):
         self.wavelength_max_input.setValue(getattr(self.parent, 'wavelength_max', 700.0))
         self.wavelength_max_input.valueChanged.connect(self.update_wavelength_limits)
         form_layout.addRow("Max. Wellenlänge (nm):", self.wavelength_max_input)
-        # -----------------------------------------------------
 
         self.setLayout(form_layout)
 
@@ -127,10 +115,6 @@ class CameraSettingsDialog(QDialog):
         self.parent.dark_field_enabled = self.dark_field_checkbox.isChecked()
 
     def capture_dark_field(self):
-        """
-            Nimmt num_frames Dunkelfeldaufnahmen auf und mittelt diese.
-            Das Ergebnis wird in self.parent.dark_field gespeichert.
-            """
         frames = []
         for i in range(self.parent.hdr_num_frames):
             frame = self.parent.camera.capture_frame()
@@ -139,7 +123,7 @@ class CameraSettingsDialog(QDialog):
         if frames:
             dark_field = np.mean(frames, axis=0)
             self.parent.dark_field = dark_field
-            print("[INFO] Dunkelfeld (gemittelt über {} Aufnahmen) aufgenommen!".format(self.parent.hdr_num_frames))
+            print("[INFO] Dunkelfeld (gemittelt) aufgenommen!")
         else:
             print("[WARNUNG] Dunkelfeldaufnahme fehlgeschlagen!")
 
@@ -162,8 +146,6 @@ class CameraSettingsDialog(QDialog):
         self.parent.camera.set_saturation(self.saturation_input.value())
 
     def set_auto_exposure(self):
-        """ Berechnet eine optimale Belichtungszeit und setzt sie """
-        """ Startet die automatische Belichtungszeit-Anpassung """
         self.parent.camera.set_auto_exposure()
         self.exposure_input.setValue(int(self.parent.camera.exposure))
 
@@ -175,13 +157,10 @@ class CameraSettingsDialog(QDialog):
         self.parent.fixed_intensity_max = self.intensity_max_input.value()
 
     def update_wavelength_limits(self):
-        # Speichere die neuen Wellenlängen-Limits in der Haupt-GUI oder im Kamera-Objekt
         self.parent.wavelength_min = self.wavelength_min_input.value()
         self.parent.wavelength_max = self.wavelength_max_input.value()
-        # Falls du bereits ein kalibriertes Spektrum plottest, kannst du hier auch das Plot-Update triggern.
 
     def update_hdr_settings(self):
-        # Speichere die HDR-Einstellungen in der Hauptanwendung oder im Kameraobjekt
         self.parent.hdr_min_exposure = self.hdr_min_exposure_input.value()
         self.parent.hdr_max_exposure = self.hdr_max_exposure_input.value()
         self.parent.hdr_num_frames = self.hdr_num_frames_input.value()
