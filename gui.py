@@ -1,8 +1,9 @@
 import cv2
 import numpy as np
-import matplotlib
-matplotlib.use("Qt5Agg")
+import matplotlib as mpl
 import matplotlib.pyplot as plt
+import datetime
+from PyQt5.QtWidgets import QFileDialog
 from PyQt5.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtCore import QTimer, Qt
@@ -14,6 +15,16 @@ from camera_settings import CameraSettingsDialog
 from calibration_dialog import CalibrationDialog
 from scipy.signal import find_peaks
 from matplotlib.patches import Rectangle
+
+mpl.use("Qt5Agg")
+mpl.rcParams['figure.facecolor'] = '#1e1e1e'
+mpl.rcParams['axes.facecolor'] = '#1e1e1e'
+mpl.rcParams['axes.edgecolor'] = 'white'
+mpl.rcParams['axes.labelcolor'] = 'white'
+mpl.rcParams['xtick.color'] = 'white'
+mpl.rcParams['ytick.color'] = 'white'
+mpl.rcParams['text.color'] = 'white'
+mpl.rcParams['figure.autolayout'] = True
 
 class SpectrometerApp(QMainWindow):
     def __init__(self):
@@ -78,6 +89,41 @@ class SpectrometerApp(QMainWindow):
         container.setLayout(main_layout)
         self.setCentralWidget(container)
 
+    def save_spectrum_to_csv(self):
+        # Stelle sicher, dass ein Spektrum (self.spectrum_line) vorliegt:
+        if not hasattr(self, "spectrum_line") or self.spectrum_line is None:
+            print("Kein Spektrum vorhanden!")
+            return
+
+        # Falls Kalibrationsdaten vorhanden sind, berechne die Wellenlängen.
+        if self.camera.calibration_data is not None:
+            x_values = np.polyval(self.camera.calibration_data, np.arange(len(self.spectrum_line)))
+        else:
+            x_values = np.arange(len(self.spectrum_line))
+
+        intensities = self.spectrum_line
+
+        # Falls der Benutzer einen spezifischen Wellenlängenbereich eingestellt hat, filtere die Daten.
+        if hasattr(self, 'wavelength_min') and hasattr(self, 'wavelength_max'):
+            mask = (x_values >= self.wavelength_min) & (x_values <= self.wavelength_max)
+            x_values = x_values[mask]
+            intensities = intensities[mask]
+
+        # Kombiniere die Daten in ein 2D-Array (zwei Spalten: Wellenlänge, Intensität)
+        data = np.column_stack((x_values, intensities))
+
+        # Erzeuge einen Default-Dateinamen mit Zeitstempel:
+        import datetime
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        default_filename = f"spectrum_{timestamp}.csv"
+
+        # Öffne einen Save-Dialog:
+        from PyQt5.QtWidgets import QFileDialog
+        filename, _ = QFileDialog.getSaveFileName(self, "Spektrum speichern", default_filename, "CSV Files (*.csv)")
+        if filename:
+            np.savetxt(filename, data, delimiter=",", header="Wavelength,Intensity", comments="")
+            print(f"Spektrum gespeichert unter {filename}")
+
     def open_roi_dialog(self):
         dialog = ROIDialog(self)
         dialog.exec()
@@ -104,7 +150,8 @@ class SpectrometerApp(QMainWindow):
             print("[FEHLER] HDR-Bild konnte nicht erstellt werden.")
 
     def capture_spectrum(self):
-        self.update_frame()
+        self.update_frame()  # Aktualisiere das Spektrum (dabei wird self.spectrum_line gesetzt)
+        self.save_spectrum_to_csv()  # Speichere das aktuelle Spektrum in eine CSV-Datei
 
     def toggle_live_update(self):
         self.live_update = not self.live_update

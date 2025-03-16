@@ -1,8 +1,17 @@
 import numpy as np
-import matplotlib
-matplotlib.use("Qt5Agg")
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 from scipy.signal import find_peaks
+
+mpl.use("Qt5Agg")
+mpl.rcParams['figure.facecolor'] = '#1e1e1e'
+mpl.rcParams['axes.facecolor'] = '#1e1e1e'
+mpl.rcParams['axes.edgecolor'] = 'white'
+mpl.rcParams['axes.labelcolor'] = 'white'
+mpl.rcParams['xtick.color'] = 'white'
+mpl.rcParams['ytick.color'] = 'white'
+mpl.rcParams['text.color'] = 'white'
+mpl.rcParams['figure.autolayout'] = True
 
 def detect_peaks(spectrum, height=None, distance=5):
     """Findet Peaks im gegebenen Spektrum."""

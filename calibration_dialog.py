@@ -1,11 +1,21 @@
 import numpy as np
-import matplotlib
-matplotlib.use("Qt5Agg")
+import matplotlib as mpl
 import matplotlib.pyplot as plt
-from PyQt5.QtWidgets import QDialog, QHBoxLayout, QVBoxLayout, QPushButton, QLabel, QFileDialog, QTableWidget, QTableWidgetItem, QLineEdit
+from PyQt5.QtWidgets import QHeaderView, QDialog, QHBoxLayout, QVBoxLayout, QPushButton, QLabel, QFileDialog, QTableWidget, QTableWidgetItem, QLineEdit
 from PyQt5.QtCore import Qt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from scipy.signal import find_peaks
+
+mpl.use("Qt5Agg")
+mpl.rcParams['figure.facecolor'] = '#1e1e1e'
+mpl.rcParams['axes.facecolor'] = '#1e1e1e'
+mpl.rcParams['axes.edgecolor'] = 'white'
+mpl.rcParams['axes.labelcolor'] = 'white'
+mpl.rcParams['xtick.color'] = 'white'
+mpl.rcParams['ytick.color'] = 'white'
+mpl.rcParams['text.color'] = 'white'
+mpl.rcParams['figure.autolayout'] = True
+
 
 class CalibrationDialog(QDialog):
     def __init__(self, parent=None, spectrum=None):
@@ -22,12 +32,16 @@ class CalibrationDialog(QDialog):
     def initUI(self):
         main_layout  = QHBoxLayout()
         self.bg_color = self.palette().color(self.backgroundRole()).name()
-
+        self.resize(1400, 400)
         # Erste Spalte: Tabelle mit Peaks + Button am unteren Rand
         table_layout = QVBoxLayout()
         self.table = QTableWidget()
+        self.table.horizontalHeader().setStyleSheet(
+            "QHeaderView::section { background-color: #1e1e1e; color: white; padding: 4px; border: 1px solid #444; }"
+        )
         self.table.setColumnCount(3)
         self.table.setHorizontalHeaderLabels(["#", "Position", "Wellenlänge"])
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         table_layout.addWidget(self.table)
         table_layout.addStretch()
         # Erstelle einen vertikalen Layoutbereich für die drei Buttons:
@@ -49,7 +63,7 @@ class CalibrationDialog(QDialog):
         self.spectrum_canvas = FigureCanvas(plt.figure(figsize=(5, 4)))
         self.ax = self.spectrum_canvas.figure.add_subplot(111)
         # Setze Hintergrund und Achsen in Weiß:
-        self.ax.set_facecolor(self.bg_color)
+        self.ax.set_facecolor("#1e1e1e")  # Achsen-Hintergrund
         self.ax.tick_params(axis='both', colors='white')
         self.ax.xaxis.label.set_color('white')
         self.ax.yaxis.label.set_color('white')
@@ -65,17 +79,21 @@ class CalibrationDialog(QDialog):
         self.detail_canvas = FigureCanvas(plt.figure(figsize=(4, 4)))
         self.detail_ax = self.detail_canvas.figure.add_subplot(111)
         # Setze auch hier Hintergrund und Achsen in Weiß:
-        self.detail_ax.set_facecolor(self.bg_color)
-        self.detail_ax.tick_params(axis='both', colors='white')
-        self.detail_ax.xaxis.label.set_color('white')
-        self.detail_ax.yaxis.label.set_color('white')
-        self.detail_ax.title.set_color('white')
+        self.spectrum_canvas.figure.set_facecolor("#1e1e1e")
+        self.ax.set_facecolor("#1e1e1e")  # Achsen-Hintergrund
+        self.ax.tick_params(axis='both', colors='white')
+        self.ax.xaxis.label.set_color('white')
+        self.ax.yaxis.label.set_color('white')
+        self.ax.title.set_color('white')
         self.detail_ax.get_yaxis().set_visible(False)
         detail_layout.addWidget(self.detail_canvas)
         main_layout.addLayout(detail_layout, 4)
 
-        self.spectrum_canvas.figure.set_facecolor(self.bg_color)
-        self.detail_canvas.figure.set_facecolor(self.bg_color)
+        self.spectrum_canvas.figure.set_facecolor("#1e1e1e")
+        self.spectrum_canvas.figure.patch.set_facecolor("#1e1e1e")
+        self.detail_canvas.figure.set_facecolor("#1e1e1e")
+        self.detail_canvas.figure.patch.set_facecolor("#1e1e1e")
+        self.spectrum_canvas.draw()
         self.setLayout(main_layout)
         self.plot_spectrum()
 
