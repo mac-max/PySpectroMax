@@ -1,7 +1,8 @@
 import cv2
 import numpy as np
-import matplotlib.pyplot as plt
+import matplotlib
 matplotlib.use("Qt5Agg")
+import matplotlib.pyplot as plt
 from PyQt5.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtCore import QTimer, Qt

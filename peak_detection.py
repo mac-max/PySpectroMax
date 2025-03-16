@@ -1,6 +1,7 @@
 import numpy as np
-import matplotlib.pyplot as plt
+import matplotlib
 matplotlib.use("Qt5Agg")
+import matplotlib.pyplot as plt
 from scipy.signal import find_peaks
 
 def detect_peaks(spectrum, height=None, distance=5):
