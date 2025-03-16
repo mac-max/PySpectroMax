@@ -6,35 +6,42 @@ class CameraSettingsDialog(QDialog):
         super().__init__(parent)
         self.setStyleSheet("background-color: #1e1e1e; color: white;")
         self.setWindowTitle("Kameraeinstellungen")
-        self.setGeometry(200, 200, 300, 500)
+        self.setGeometry(200, 200, 300, 600)
         self.parent = parent
         self.initUI()
 
     def initUI(self):
         form_layout = QFormLayout()
 
-        # Belichtungszeit
+        # Bestehende Einstellungen...
         self.exposure_input = QSpinBox()
         self.exposure_input.setRange(-20, 1)
         self.exposure_input.setValue(int(self.parent.camera.exposure))
         self.exposure_input.valueChanged.connect(self.update_exposure)
         form_layout.addRow("Belichtungszeit:", self.exposure_input)
 
-        # Gain
+        self.auto_exposure_button = QPushButton("Auto-Belichtungszeit setzen")
+        self.auto_exposure_button.clicked.connect(self.set_auto_exposure)
+        form_layout.addRow(self.auto_exposure_button)
+
+        self.fps_input = QSpinBox()
+        self.fps_input.setRange(1, 30)  # z. B. 1 bis 30 FPS
+        self.fps_input.setValue(1)  # Standardwert
+        self.fps_input.valueChanged.connect(self.update_fps)
+        form_layout.addRow("FPS:", self.fps_input)
+
         self.gain_input = QSlider()
         self.gain_input.setRange(0, 100)
         self.gain_input.setValue(int(self.parent.camera.gain))
         self.gain_input.valueChanged.connect(self.update_gain)
         form_layout.addRow("Gain:", self.gain_input)
 
-        # Kontrast
         self.contrast_input = QSlider()
         self.contrast_input.setRange(0, 255)
         self.contrast_input.setValue(int(self.parent.camera.contrast))
         self.contrast_input.valueChanged.connect(self.update_contrast)
         form_layout.addRow("Kontrast:", self.contrast_input)
 
-        # Sättigung
         self.saturation_input = QSlider()
         self.saturation_input.setRange(0, 255)
         self.saturation_input.setValue(int(self.parent.camera.saturation))
@@ -76,10 +83,19 @@ class CameraSettingsDialog(QDialog):
         self.hdr_num_frames_input.valueChanged.connect(self.update_hdr_settings)
         form_layout.addRow("HDR Bilder/Stufe:", self.hdr_num_frames_input)
 
-        # Auto-Belichtung Button
-        self.auto_exposure_button = QPushButton("Auto-Belichtungszeit setzen")
-        self.auto_exposure_button.clicked.connect(self.set_auto_exposure)
-        form_layout.addRow(self.auto_exposure_button)
+        # Neue Performance-Optionen:
+        self.low_res_checkbox = QCheckBox("Niedrigere Live-Auflösung verwenden")
+        # Standard: deaktiviert
+        self.low_res_checkbox.setChecked(getattr(self.parent, "low_res_mode", False))
+        self.low_res_checkbox.stateChanged.connect(self.update_performance_settings)
+        form_layout.addRow(self.low_res_checkbox)
+
+        self.update_interval_input = QSpinBox()
+        self.update_interval_input.setRange(50, 1000)  # in ms
+        # Standardwert z.B. 200ms, falls im Performance-Modus aktiv:
+        self.update_interval_input.setValue(getattr(self.parent, "update_interval", 200))
+        self.update_interval_input.valueChanged.connect(self.update_performance_settings)
+        form_layout.addRow("Update-Intervall (ms):", self.update_interval_input)
 
         # Automatische Intensitätsskala
         self.auto_scale_checkbox = QCheckBox("Automatische Skalierung")
@@ -113,6 +129,12 @@ class CameraSettingsDialog(QDialog):
 
     def update_dark_field_setting(self):
         self.parent.dark_field_enabled = self.dark_field_checkbox.isChecked()
+
+    def update_fps(self):
+        new_fps = self.fps_input.value()
+        self.parent.fps = new_fps
+        # Setze auch die FPS in der Kamera, falls unterstützt:
+        self.parent.camera.set_fps(new_fps)
 
     def capture_dark_field(self):
         frames = []
@@ -164,3 +186,8 @@ class CameraSettingsDialog(QDialog):
         self.parent.hdr_min_exposure = self.hdr_min_exposure_input.value()
         self.parent.hdr_max_exposure = self.hdr_max_exposure_input.value()
         self.parent.hdr_num_frames = self.hdr_num_frames_input.value()
+
+    def update_performance_settings(self):
+        # Diese Methode speichert Performance-Optionen in der Hauptanwendung
+        self.parent.low_res_mode = False #self.low_res_checkbox.isChecked()
+        self.parent.update_interval = self.update_interval_input.value()

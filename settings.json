@@ -1,0 +1,40 @@
+{
+    "integration_time": 30,
+    "auto_scale_intensity": true,
+    "fixed_intensity_max": 255,
+    "mirror": true,
+    "hdr_num_frames": 5,
+    "roi": [
+        319,
+        185,
+        661,
+        295
+    ],
+    "low_res_mode": false,
+    "update_interval": 200,
+    "camera": {
+        "exposure": -6.0,
+        "gain": -1.0,
+        "brightness": 133.0,
+        "contrast": 5.0,
+        "saturation": 83.0,
+        "hdr_min_exposure": -10,
+        "hdr_max_exposure": 1,
+        "sensitivity_factors": [
+            4.6,
+            3.2,
+            4.3,
+            15.3,
+            2.7,
+            4,
+            1.25,
+            2,
+            2,
+            1.1,
+            1.1,
+            1.1
+        ]
+    },
+    "wavelength_min": 400,
+    "wavelength_max": 700
+}

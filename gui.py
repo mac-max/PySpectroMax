@@ -1,4 +1,6 @@
 import cv2
+import json
+import os
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -29,6 +31,8 @@ mpl.rcParams['figure.autolayout'] = True
 class SpectrometerApp(QMainWindow):
     def __init__(self):
         super().__init__()
+        # Lade Einstellungen, falls vorhanden:
+        self.camera = Camera()
         self.initUI()
         self.setStyleSheet("background-color: #1e1e1e; color: white;")
         self.camera = Camera()
@@ -36,15 +40,19 @@ class SpectrometerApp(QMainWindow):
         self.auto_scale_intensity = True
         self.fixed_intensity_max = 255
         self.mirror = True
+        self.low_res_mode = False
+        self.update_interval = 200  # Standard-Update-Intervall in ms, wenn low_res_mode aktiviert wird
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_frame)
         self.live_update = True
         self.update_timer_interval()
         self.hdr_result = None
         self.hdr_num_frames = 5
+        self.fps = 1  # Standard-FPS, falls keine Einstellung vorhanden ist
         self.roi = (0, 470, 1920, 150)
         self.setWindowTitle("USB-Spektrometer GUI")
         self.setGeometry(100, 100, 900, 600)
+        self.load_settings()
 
     def initUI(self):
         main_layout = QHBoxLayout()
@@ -52,9 +60,12 @@ class SpectrometerApp(QMainWindow):
 
         # Linke Seite: Button-Bereich
         button_layout = QVBoxLayout()
-        self.btn_capture = QPushButton("Spektrum aufnehmen")
+        self.btn_capture = QPushButton("CSV speichern")
         self.btn_capture.clicked.connect(self.capture_spectrum)
         button_layout.addWidget(self.btn_capture)
+        self.btn_save_image = QPushButton("JPG speichern")
+        self.btn_save_image.clicked.connect(self.save_spectrum_as_jpg)
+        button_layout.addWidget(self.btn_save_image)
         self.btn_roi = QPushButton("ROI einstellen")
         self.btn_roi.clicked.connect(self.open_roi_dialog)
         button_layout.addWidget(self.btn_roi)
@@ -72,6 +83,9 @@ class SpectrometerApp(QMainWindow):
         button_layout.addWidget(self.btn_calibration)
         button_layout.addStretch()
         main_layout.addLayout(button_layout, 1)
+        self.btn_save_settings = QPushButton("Einstellungen speichern")
+        self.btn_save_settings.clicked.connect(self.save_settings)
+        button_layout.addWidget(self.btn_save_settings)
 
         # Rechte Seite: Spektrum-Anzeige mit Matplotlib
         self.figure, self.ax = plt.subplots()
@@ -88,6 +102,66 @@ class SpectrometerApp(QMainWindow):
         container = QWidget()
         container.setLayout(main_layout)
         self.setCentralWidget(container)
+
+    def load_settings(self):
+        if os.path.exists("settings.json"):
+            with open("settings.json", "r") as f:
+                settings = json.load(f)
+            self.integration_time = settings.get("integration_time", 30)
+            self.auto_scale_intensity = settings.get("auto_scale_intensity", True)
+            self.fixed_intensity_max = settings.get("fixed_intensity_max", 255)
+            self.mirror = settings.get("mirror", True)
+            self.hdr_num_frames = settings.get("hdr_num_frames", 5)
+            self.roi = tuple(settings.get("roi", [0, 470, 1920, 150]))
+            self.low_res_mode = settings.get("low_res_mode", False)
+            self.update_interval = settings.get("update_interval", 200)
+            # Kameraeinstellungen:
+            cam_settings = settings.get("camera", {})
+            self.camera.exposure = cam_settings.get("exposure", self.camera.exposure)
+            self.camera.fps = cam_settings.get("fps", self.camera.fps)
+            self.camera.gain = cam_settings.get("gain", self.camera.gain)
+            self.camera.brightness = cam_settings.get("brightness", self.camera.brightness)
+            self.camera.contrast = cam_settings.get("contrast", self.camera.contrast)
+            self.camera.saturation = cam_settings.get("saturation", self.camera.saturation)
+            self.camera.hdr_min_exposure = cam_settings.get("hdr_min_exposure", self.camera.hdr_min_exposure)
+            self.camera.hdr_max_exposure = cam_settings.get("hdr_max_exposure", self.camera.hdr_max_exposure)
+            self.camera.sensitivity_factors = cam_settings.get("sensitivity_factors", self.camera.sensitivity_factors)
+            self.camera.apply_settings()
+            print("Einstellungen geladen.")
+        else:
+            print("Keine gespeicherten Einstellungen gefunden.")
+    def save_settings(self):
+        settings = {
+            "integration_time": self.integration_time,
+            "auto_scale_intensity": self.auto_scale_intensity,
+            "fixed_intensity_max": self.fixed_intensity_max,
+            "mirror": self.mirror,
+            "hdr_num_frames": self.hdr_num_frames,
+            "roi": self.roi,  # als Tupel oder Liste
+            "low_res_mode": self.low_res_mode,
+            "update_interval": self.update_interval,
+            # Kameraeinstellungen:
+            "camera": {
+                "exposure": self.camera.exposure,
+                "gain": self.camera.gain,
+                "brightness": self.camera.brightness,
+                "contrast": self.camera.contrast,
+                "saturation": self.camera.saturation,
+                "hdr_min_exposure": self.camera.hdr_min_exposure,
+                "hdr_max_exposure": self.camera.hdr_max_exposure,
+                "sensitivity_factors": self.camera.sensitivity_factors,
+            },
+            # Optional: Falls du Wellenlängen-Limits festlegst:
+            "wavelength_min": getattr(self, "wavelength_min", 400),
+            "wavelength_max": getattr(self, "wavelength_max", 700)
+        }
+        with open("settings.json", "w") as f:
+            json.dump(settings, f, indent=4)
+        print("Einstellungen gespeichert.")
+    def update_timer_interval(self):
+        if self.live_update:
+            self.timer.setInterval(self.integration_time if not self.low_res_mode else self.update_interval)
+            self.timer.start()
 
     def save_spectrum_to_csv(self):
         # Stelle sicher, dass ein Spektrum (self.spectrum_line) vorliegt:
@@ -123,6 +197,19 @@ class SpectrometerApp(QMainWindow):
         if filename:
             np.savetxt(filename, data, delimiter=",", header="Wavelength,Intensity", comments="")
             print(f"Spektrum gespeichert unter {filename}")
+
+    def save_spectrum_as_jpg(self):
+        from PyQt5.QtWidgets import QFileDialog
+        # Erzeuge einen Default-Dateinamen mit Zeitstempel
+        import datetime
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        default_filename = f"spectrum_{timestamp}.jpg"
+        filename, _ = QFileDialog.getSaveFileName(self, "Spektrum als JPG speichern", default_filename,
+                                                  "JPEG Files (*.jpg)")
+        if filename:
+            # Speichere die Figure als JPG:
+            self.figure.savefig(filename, format="jpg")
+            print(f"Spektrum-Bild gespeichert unter {filename}")
 
     def open_roi_dialog(self):
         dialog = ROIDialog(self)
@@ -164,14 +251,6 @@ class SpectrometerApp(QMainWindow):
         if not self.live_update and self.hdr_result is None:
             return
 
-        self.figure.set_facecolor("#1e1e1e")  # Setzt den Hintergrund der Figure
-        self.ax.set_facecolor("#1e1e1e")  # Setzt den Hintergrund der Achsen
-        self.ax.tick_params(axis='both', colors='white')  # Setzt die Tick-Farbe auf Weiß
-        self.ax.xaxis.label.set_color('white')
-        self.ax.yaxis.label.set_color('white')
-        self.ax.title.set_color('white')
-        self.ax.tick_params(axis='both', colors='white')
-
         self.original_xlim = self.ax.get_xlim()
         self.original_ylim = self.ax.get_ylim()
 
@@ -181,6 +260,7 @@ class SpectrometerApp(QMainWindow):
             x, y, w, h = 0, 0, frame.shape[1], frame.shape[0]
         else:
             frame = self.camera.capture_frame()
+            # Hier ist self.roi in Originalkoordinaten (z. B. 1920×1080)
             x, y, w, h = self.roi
 
         if frame is not None:
@@ -190,19 +270,46 @@ class SpectrometerApp(QMainWindow):
                 frame = np.maximum(frame - self.dark_field, 0)
             if len(frame.shape) == 3:
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+            # Speichere die Originalgröße
+            full_h, full_w = frame.shape[:2]
+
+            # Falls low_res_mode aktiv ist, verkleinere das Bild und skaliere die ROI-Koordinaten:
+            if self.low_res_mode:
+                low_w, low_h = 640, 360
+                frame = cv2.resize(frame, (low_w, low_h), interpolation=cv2.INTER_AREA)
+                scale_x = low_w / full_w
+                scale_y = low_h / full_h
+                # Passe ROI an:
+                x = int(x * scale_x)
+                y = int(y * scale_y)
+                w = int(w * scale_x)
+                h = int(h * scale_y)
+
             h_img, w_img = frame.shape[:2]
+            # Prüfe, ob ROI gültig ist:
             if self.hdr_result is None:
                 if x + w > w_img or y + h > h_img or x < 0 or y < 0:
                     print("[WARNUNG] ROI außerhalb des gültigen Bereichs!")
                     return
+
             roi_frame = frame[y:y + h, x:x + w]
             if roi_frame.size == 0:
                 print("[FEHLER] ROI ist leer! Überspringe Berechnung.")
                 return
+            if not self.auto_scale_intensity:
+                self.ax.set_ylim(0, self.fixed_intensity_max)
 
             self.spectrum_line = np.sum(roi_frame, axis=0)
 
             self.ax.clear()
+            self.figure.set_facecolor("#1e1e1e")  # Setzt den Hintergrund der Figure
+            self.ax.set_facecolor("#1e1e1e")  # Setzt den Hintergrund der Achsen
+            self.ax.tick_params(axis='both', colors='white')  # Setzt die Tick-Farbe auf Weiß
+            self.ax.xaxis.label.set_color('white')
+            self.ax.yaxis.label.set_color('white')
+            self.ax.title.set_color('white')
+            self.ax.tick_params(axis='both', colors='white')
             if self.camera.calibration_data is not None:
                 x_values = np.polyval(self.camera.calibration_data, np.arange(len(self.spectrum_line)))
                 self.ax.plot(x_values, self.spectrum_line, color='red' if not self.live_update else 'white')
@@ -214,6 +321,8 @@ class SpectrometerApp(QMainWindow):
                 self.ax.set_xlabel("Pixelposition")
             self.ax.tick_params(axis='both', colors='white')
             self.ax.set_ylabel("Intensität")
+            if not self.auto_scale_intensity:
+                self.ax.set_ylim(0, self.fixed_intensity_max)
             self.canvas.draw()
 
     def open_intensity_settings(self):

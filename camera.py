@@ -6,6 +6,7 @@ class Camera:
         self.cap = cv2.VideoCapture(0)  # Kamera-ID 1 (falls nötig, anpassen)
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+        self.cap.set(cv2.CAP_PROP_FPS, 1)
         self.calibration_data = None
         self.load_calibration()
 
@@ -36,6 +37,7 @@ class Camera:
         self.brightness = self.cap.get(cv2.CAP_PROP_BRIGHTNESS)
         self.contrast = self.cap.get(cv2.CAP_PROP_CONTRAST)
         self.saturation = self.cap.get(cv2.CAP_PROP_SATURATION)
+        self.fps = self.cap.get(cv2.CAP_PROP_FPS)
 
     def apply_settings(self):
         """ Wendet die gespeicherten Kameraeinstellungen an """
@@ -44,10 +46,14 @@ class Camera:
         self.cap.set(cv2.CAP_PROP_BRIGHTNESS, self.brightness)
         self.cap.set(cv2.CAP_PROP_CONTRAST, self.contrast)
         self.cap.set(cv2.CAP_PROP_SATURATION, self.saturation)
+        self.cap.set(cv2.CAP_PROP_FPS, self.fps)
 
     def set_exposure(self, value):
         self.exposure = value
         self.apply_settings()
+
+    def set_fps(self, fps_value):
+        success = self.cap.set(cv2.CAP_PROP_FPS, fps_value)
 
     def set_auto_exposure(self):
         """ Automatische Anpassung der Belichtungszeit basierend auf Bildhelligkeit """
