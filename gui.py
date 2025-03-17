@@ -48,6 +48,10 @@ class SpectrometerApp(QMainWindow):
         self.update_timer_interval()
         self.hdr_result = None
         self.hdr_num_frames = 5
+        self.relative_spectrum_enabled = False  # Quotientenbildung aktiv?
+        self.normalize_relative_spectrum = False  # Quotient normieren (max = 1)?
+        self.reference_spectrum = None  # Hier wird das aufgenommene Referenzspektrum gespeichert
+
         self.fps = 1  # Standard-FPS, falls keine Einstellung vorhanden ist
         self.roi = (0, 470, 1920, 150)
         self.setWindowTitle("USB-Spektrometer GUI")
@@ -81,6 +85,9 @@ class SpectrometerApp(QMainWindow):
         self.btn_calibration = QPushButton("Kalibration starten")
         self.btn_calibration.clicked.connect(self.start_calibration)
         button_layout.addWidget(self.btn_calibration)
+        self.btn_relative = QPushButton("Relativspektrum")
+        self.btn_relative.clicked.connect(self.open_relative_spectrum_dialog)
+        button_layout.addWidget(self.btn_relative)
         button_layout.addStretch()
         main_layout.addLayout(button_layout, 1)
         self.btn_save_settings = QPushButton("Einstellungen speichern")
@@ -102,6 +109,11 @@ class SpectrometerApp(QMainWindow):
         container = QWidget()
         container.setLayout(main_layout)
         self.setCentralWidget(container)
+
+    def open_relative_spectrum_dialog(self):
+        from relative_spectrum_dialog import RelativeSpectrumDialog
+        dialog = RelativeSpectrumDialog(self)
+        dialog.exec_()
 
     def load_settings(self):
         if os.path.exists("settings.json"):
@@ -153,7 +165,11 @@ class SpectrometerApp(QMainWindow):
             },
             # Optional: Falls du Wellenlängen-Limits festlegst:
             "wavelength_min": getattr(self, "wavelength_min", 400),
-            "wavelength_max": getattr(self, "wavelength_max", 700)
+            "wavelength_max": getattr(self, "wavelength_max", 700),
+            "relative_spectrum_enabled": self.relative_spectrum_enabled,
+            "normalize_relative_spectrum": self.normalize_relative_spectrum,
+            # Referenzspektrum als Liste abspeichern:
+            "reference_spectrum": self.reference_spectrum.tolist() if self.reference_spectrum is not None else None,
         }
         with open("settings.json", "w") as f:
             json.dump(settings, f, indent=4)
@@ -301,6 +317,18 @@ class SpectrometerApp(QMainWindow):
                 self.ax.set_ylim(0, self.fixed_intensity_max)
 
             self.spectrum_line = np.sum(roi_frame, axis=0)
+
+            # Falls Relativspektrum aktiviert und ein Referenzspektrum vorliegt:
+            if self.relative_spectrum_enabled and self.reference_spectrum is not None:
+                # Berechne den Quotienten – sichere Division (wo self.reference_spectrum != 0)
+                quotient = np.divide(self.spectrum_line, self.reference_spectrum,
+                                     out=np.zeros_like(self.spectrum_line), where=self.reference_spectrum != 0)
+                # Optional: Normalisieren auf einen Maximalwert von 1
+                if self.normalize_relative_spectrum:
+                    max_val = np.max(quotient)
+                    if max_val > 0:
+                        quotient = quotient / max_val
+                self.spectrum_line = quotient
 
             self.ax.clear()
             self.figure.set_facecolor("#1e1e1e")  # Setzt den Hintergrund der Figure
