@@ -6,7 +6,7 @@ class Camera:
         self.cap = cv2.VideoCapture(0)  # Kamera-ID 1 (falls nötig, anpassen)
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
-        self.cap.set(cv2.CAP_PROP_FPS, 1)
+        # self.cap.set(cv2.CAP_PROP_FPS, 1)
         self.calibration_data = None
         self.load_calibration()
         self.fps = 1# self.cap.get(cv2.CAP_PROP_FPS)
