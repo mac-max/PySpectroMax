@@ -9,7 +9,7 @@ class Camera:
         self.cap.set(cv2.CAP_PROP_FPS, 1)
         self.calibration_data = None
         self.load_calibration()
-
+        self.fps = self.cap.get(cv2.CAP_PROP_FPS)
         self.hdr_min_exposure  = -10
         self.hdr_max_exposure  = 1
         self.hdr_num_frames  = 3
@@ -46,7 +46,7 @@ class Camera:
         self.cap.set(cv2.CAP_PROP_BRIGHTNESS, self.brightness)
         self.cap.set(cv2.CAP_PROP_CONTRAST, self.contrast)
         self.cap.set(cv2.CAP_PROP_SATURATION, self.saturation)
-        self.cap.set(cv2.CAP_PROP_FPS, self.fps)
+        # self.cap.set(cv2.CAP_PROP_FPS, self.fps)
 
     def set_exposure(self, value):
         self.exposure = value
