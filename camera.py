@@ -9,7 +9,7 @@ class Camera:
         self.cap.set(cv2.CAP_PROP_FPS, 1)
         self.calibration_data = None
         self.load_calibration()
-        self.fps = self.cap.get(cv2.CAP_PROP_FPS)
+        self.fps = 1# self.cap.get(cv2.CAP_PROP_FPS)
         self.hdr_min_exposure  = -10
         self.hdr_max_exposure  = 1
         self.hdr_num_frames  = 3
@@ -37,7 +37,7 @@ class Camera:
         self.brightness = self.cap.get(cv2.CAP_PROP_BRIGHTNESS)
         self.contrast = self.cap.get(cv2.CAP_PROP_CONTRAST)
         self.saturation = self.cap.get(cv2.CAP_PROP_SATURATION)
-        self.fps = self.cap.get(cv2.CAP_PROP_FPS)
+        self.fps = 1#self.cap.get(cv2.CAP_PROP_FPS)
 
     def apply_settings(self):
         """ Wendet die gespeicherten Kameraeinstellungen an """

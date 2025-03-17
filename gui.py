@@ -51,7 +51,7 @@ class SpectrometerApp(QMainWindow):
         self.relative_spectrum_enabled = False  # Quotientenbildung aktiv?
         self.normalize_relative_spectrum = False  # Quotient normieren (max = 1)?
         self.reference_spectrum = None  # Hier wird das aufgenommene Referenzspektrum gespeichert
-        self.fps = self.camera.cap.get(cv2.CAP_PROP_FPS) # Aktuelle FPS, falls keine Einstellung vorhanden ist
+        self.fps = 1#self.camera.cap.get(cv2.CAP_PROP_FPS) # Aktuelle FPS, falls keine Einstellung vorhanden ist
         self.roi = (0, 470, 1920, 150)
         self.setWindowTitle("USB-Spektrometer GUI")
         self.setGeometry(100, 100, 900, 600)
