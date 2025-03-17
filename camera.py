@@ -53,7 +53,7 @@ class Camera:
         self.apply_settings()
 
     def set_fps(self, fps_value):
-        success = self.cap.set(cv2.CAP_PROP_FPS, fps_value)
+        success = True #self.cap.set(cv2.CAP_PROP_FPS, fps_value)
 
     def set_auto_exposure(self):
         """ Automatische Anpassung der Belichtungszeit basierend auf Bildhelligkeit """

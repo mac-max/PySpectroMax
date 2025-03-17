@@ -31,6 +31,10 @@ class RelativeSpectrumDialog(QDialog):
         self.btn_capture_ref.clicked.connect(self.capture_reference_spectrum)
         layout.addRow(self.btn_capture_ref)
 
+        self.btn_use_current = QPushButton("Aktuelles Spektrum als Referenz")
+        self.btn_use_current.clicked.connect(self.use_current_as_reference)
+        layout.addRow(self.btn_use_current)
+
         self.setLayout(layout)
 
     def toggle_relative_spectrum(self):
@@ -58,3 +62,17 @@ class RelativeSpectrumDialog(QDialog):
         # Speichere als CSV:
         np.savetxt("reference_spectrum.csv", reference_spectrum, delimiter=",", header="Intensity", comments="")
         QMessageBox.information(self, "Erfolg", "Referenzspektrum aufgenommen und gespeichert!")
+
+    def use_current_as_reference(self):
+        if not hasattr(self.parent, "spectrum_line") or self.parent.spectrum_line is None:
+            from PyQt5.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Fehler", "Kein aktuelles Spektrum vorhanden!")
+            return
+        # Setze das aktuell angezeigte Spektrum als Referenz
+        self.parent.reference_spectrum = self.parent.spectrum_line.copy()
+        # Optional: Speichere das Referenzspektrum in einer Datei
+        np.savetxt("reference_spectrum.csv", self.parent.reference_spectrum, delimiter=",", header="Intensity",
+                   comments="")
+        from PyQt5.QtWidgets import QMessageBox
+        QMessageBox.information(self, "Erfolg", "Aktuelles Spektrum als Referenz gesetzt!")
+

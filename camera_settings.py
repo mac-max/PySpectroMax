@@ -13,7 +13,7 @@ class CameraSettingsDialog(QDialog):
     def initUI(self):
         form_layout = QFormLayout()
 
-        # Bestehende Einstellungen...
+        # Belichtung
         self.exposure_input = QSpinBox()
         self.exposure_input.setRange(-20, 1)
         self.exposure_input.setValue(int(self.parent.camera.exposure))
@@ -25,7 +25,7 @@ class CameraSettingsDialog(QDialog):
         form_layout.addRow(self.auto_exposure_button)
 
         self.fps_input = QSpinBox()
-        self.fps_input.setRange(1, 30)  # z. B. 1 bis 30 FPS
+        self.fps_input.setRange(-10, 30000)
         self.fps_input.setValue(1)  # Standardwert
         self.fps_input.valueChanged.connect(self.update_fps)
         form_layout.addRow("FPS:", self.fps_input)
