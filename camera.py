@@ -1,43 +1,74 @@
 import cv2
 import numpy as np
+from CameraSelectionDialog import CameraSelectionDialog
+
 
 class Camera:
-    def __init__(self):
-        self.cap = cv2.VideoCapture(0)  # Kamera-ID 1 (falls nötig, anpassen)
+    def __init__(self, chosen_cam=None):
+        self.properties_list = [
+            ("Frame Width", cv2.CAP_PROP_FRAME_WIDTH),
+            ("Frame Height", cv2.CAP_PROP_FRAME_HEIGHT),
+            ("FPS", cv2.CAP_PROP_FPS),
+            ("Exposure", cv2.CAP_PROP_EXPOSURE),
+            ("Gain", cv2.CAP_PROP_GAIN),
+            ("Brightness", cv2.CAP_PROP_BRIGHTNESS),
+            ("Contrast", cv2.CAP_PROP_CONTRAST),
+            ("Saturation", cv2.CAP_PROP_SATURATION),
+            ("Format", cv2.CAP_PROP_FORMAT),
+        ]
+        # Kameraerkennung und -auswahl:
+        if chosen_cam is not None:
+            # Direkt Kamera mit gespeicherter ID öffnen
+            self.chosen_cam = chosen_cam
+        else:
+            # Nur wenn keine Voreinstellung -> Dialog anzeigen
+            self.cams = self.list_available_cameras()
+            if not self.cams:
+                print("Keine Kamera gefunden.")
+                return
+            dialog = CameraSelectionDialog(self.cams)
+            if dialog.exec_():
+                self.chosen_cam = dialog.selected_camera
+            else:
+                print("Keine Kamera ausgewählt.")
+                return
+
+        # Initialisiere self.cap, bevor du die unterstützten Eigenschaften abfragst:
+        self.cap = cv2.VideoCapture(self.chosen_cam)
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
-        # self.cap.set(cv2.CAP_PROP_FPS, 1)
+
+        # Nun kannst du die unterstützten Eigenschaften abfragen:
+        self.supported_properties = self.list_supported_properties()
+
+        # Der Rest der Initialisierung folgt hier:
         self.calibration_data = None
         self.load_calibration()
-        self.fps = 1# self.cap.get(cv2.CAP_PROP_FPS)
-        self.hdr_min_exposure  = -10
-        self.hdr_max_exposure  = 1
-        self.hdr_num_frames  = 3
-
+        self.fps = 1
+        self.hdr_min_exposure = -10
+        self.hdr_max_exposure = 1
+        self.hdr_num_frames = 3
         self.exposure_thr = 0.95
 
-        # Standardmäßig auf False setzen, um Fehler zu vermeiden
         self.supports_high_bitdepth = False
 
-        # Für Belichtungsstufen von -10 bis 1 (Index 0 entspricht -10, Index 11 entspricht 1)
+        # Sensitivitätsfaktoren für Belichtungsstufen von -10 bis 1
         self.sensitivity_factors = [4.6, 3.2, 4.3, 15.3, 2.7, 4, 1.25, 2, 2, 1.1, 1.1, 1.1]
 
-        # Prüfe, ob die Kamera höhere Bittiefe unterstützt
         self.supports_high_bitdepth = self.check_bitdepth_support()
 
         if self.supports_high_bitdepth:
             print("[INFO] Kamera unterstützt höhere Bittiefe. Umstellung auf 16-Bit-Modus...")
-            self.cap.set(cv2.CAP_PROP_FORMAT, cv2.CV_16U)  # Falls unterstützt
+            self.cap.set(cv2.CAP_PROP_FORMAT, cv2.CV_16U)
         else:
             print("[WARNUNG] Kamera unterstützt nur 8 Bit!")
 
-       # Standardwerte speichern
         self.exposure = self.cap.get(cv2.CAP_PROP_EXPOSURE)
         self.gain = self.cap.get(cv2.CAP_PROP_GAIN)
         self.brightness = self.cap.get(cv2.CAP_PROP_BRIGHTNESS)
         self.contrast = self.cap.get(cv2.CAP_PROP_CONTRAST)
         self.saturation = self.cap.get(cv2.CAP_PROP_SATURATION)
-        self.fps = 1#self.cap.get(cv2.CAP_PROP_FPS)
+        self.fps = self.cap.get(cv2.CAP_PROP_FPS)
 
     def apply_settings(self):
         """ Wendet die gespeicherten Kameraeinstellungen an """
@@ -46,7 +77,45 @@ class Camera:
         self.cap.set(cv2.CAP_PROP_BRIGHTNESS, self.brightness)
         self.cap.set(cv2.CAP_PROP_CONTRAST, self.contrast)
         self.cap.set(cv2.CAP_PROP_SATURATION, self.saturation)
-        # self.cap.set(cv2.CAP_PROP_FPS, self.fps)
+        self.cap.set(cv2.CAP_PROP_FPS, self.fps)
+
+    def get_property(self, prop):
+        """Wrapper, um eine Eigenschaft von der Kamera abzufragen."""
+        return self.cap.get(prop)
+    def list_available_cameras(self, max_index=5, timeout=2):
+        import concurrent.futures
+        available = []
+        for index in range(max_index):
+            cap = cv2.VideoCapture(index)
+            # Versuche, ein Frame zu holen:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(lambda: cap.read())
+                try:
+                    ret, frame = future.result(timeout=timeout)
+                    if ret:
+                        available.append(index)
+                except Exception:
+                    pass
+            cap.release()
+        return available
+
+    def list_supported_properties(self):
+        """Fragt einige Standard-Kameraeigenschaften ab und gibt ein Dictionary zurück."""
+        properties = {
+            "Frame Width": cv2.CAP_PROP_FRAME_WIDTH,
+            "Frame Height": cv2.CAP_PROP_FRAME_HEIGHT,
+            "FPS": cv2.CAP_PROP_FPS,
+            "Exposure": cv2.CAP_PROP_EXPOSURE,
+            "Gain": cv2.CAP_PROP_GAIN,
+            "Brightness": cv2.CAP_PROP_BRIGHTNESS,
+            "Contrast": cv2.CAP_PROP_CONTRAST,
+            "Saturation": cv2.CAP_PROP_SATURATION,
+            "Format": cv2.CAP_PROP_FORMAT,
+        }
+        supported = {}
+        for name, prop in properties.items():
+            supported[name] = self.get_property(prop)
+        return supported
 
     def set_exposure(self, value):
         self.exposure = value

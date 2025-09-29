@@ -5,19 +5,25 @@
     "mirror": true,
     "hdr_num_frames": 5,
     "roi": [
-        319,
-        185,
-        661,
-        295
+        0,
+        470,
+        1920,
+        150
     ],
     "low_res_mode": false,
     "update_interval": 200,
     "camera": {
+        "cams": [
+            0,
+            1
+        ],
+        "chosen_cam": 0,
         "exposure": -6.0,
+        "fps": 30.0,
         "gain": -1.0,
-        "brightness": 133.0,
-        "contrast": 5.0,
-        "saturation": 83.0,
+        "brightness": 0.0,
+        "contrast": 32.0,
+        "saturation": 50.0,
         "hdr_min_exposure": -10,
         "hdr_max_exposure": 1,
         "sensitivity_factors": [
@@ -36,5 +42,8 @@
         ]
     },
     "wavelength_min": 400,
-    "wavelength_max": 700
+    "wavelength_max": 700,
+    "relative_spectrum_enabled": false,
+    "normalize_relative_spectrum": false,
+    "reference_spectrum": null
 }

@@ -24,29 +24,43 @@ class CameraSettingsDialog(QDialog):
         self.auto_exposure_button.clicked.connect(self.set_auto_exposure)
         form_layout.addRow(self.auto_exposure_button)
 
+        # FPS-Einstellung: nur anzeigen, wenn von der Kamera unterstützt
         self.fps_input = QSpinBox()
         self.fps_input.setRange(-10, 30000)
         self.fps_input.setValue(1)  # Standardwert
         self.fps_input.valueChanged.connect(self.update_fps)
         form_layout.addRow("FPS:", self.fps_input)
+        # Hier greifen wir auf die unterstützten Eigenschaften zu, die in der Camera-Klasse gespeichert wurden:
+        if self.parent.camera.supported_properties.get("FPS", 0) <= 0:
+            self.fps_input.setVisible(False)
 
+        # Gain
         self.gain_input = QSlider()
         self.gain_input.setRange(0, 100)
         self.gain_input.setValue(int(self.parent.camera.gain))
         self.gain_input.valueChanged.connect(self.update_gain)
         form_layout.addRow("Gain:", self.gain_input)
+        # Falls Gain nicht unterstützt (Rückgabewert <= 0), ausblenden:
+        if self.parent.camera.supported_properties.get("Gain", 0) <= 0:
+            self.gain_input.setVisible(False)
 
+        # Kontrast
         self.contrast_input = QSlider()
         self.contrast_input.setRange(0, 255)
         self.contrast_input.setValue(int(self.parent.camera.contrast))
         self.contrast_input.valueChanged.connect(self.update_contrast)
         form_layout.addRow("Kontrast:", self.contrast_input)
+        if self.parent.camera.supported_properties.get("Contrast", 0) <= 0:
+            self.contrast_input.setVisible(False)
 
+        # Sättigung
         self.saturation_input = QSlider()
         self.saturation_input.setRange(0, 255)
         self.saturation_input.setValue(int(self.parent.camera.saturation))
         self.saturation_input.valueChanged.connect(self.update_saturation)
         form_layout.addRow("Sättigung:", self.saturation_input)
+        if self.parent.camera.supported_properties.get("Saturation", 0) <= 0:
+            self.saturation_input.setVisible(False)
 
         # Dunkelfeldaufnahme
         self.dark_field_checkbox = QCheckBox("Dunkelfeldkorrektur aktivieren")
@@ -125,6 +139,10 @@ class CameraSettingsDialog(QDialog):
         self.wavelength_max_input.valueChanged.connect(self.update_wavelength_limits)
         form_layout.addRow("Max. Wellenlänge (nm):", self.wavelength_max_input)
 
+        self.btn_switch_camera = QPushButton("Kamera wechseln")
+        self.btn_switch_camera.clicked.connect(self.switch_camera)
+        form_layout.addRow(self.btn_switch_camera)
+
         self.setLayout(form_layout)
 
     def update_dark_field_setting(self):
@@ -135,6 +153,16 @@ class CameraSettingsDialog(QDialog):
         self.parent.fps = new_fps
         # Setze auch die FPS in der Kamera, falls unterstützt:
         self.parent.camera.set_fps(new_fps)
+
+    def switch_camera(self):
+        from CameraSelectionDialog import CameraSelectionDialog
+        cams = self.parent.camera.list_available_cameras()
+        dialog = CameraSelectionDialog(cams)
+        if dialog.exec_():
+            new_cam = dialog.selected_camera
+            self.parent.camera.release()
+            self.parent.camera = Camera(chosen_cam=new_cam)
+            print(f"[INFO] Kamera gewechselt zu {new_cam}")
 
     def capture_dark_field(self):
         frames = []

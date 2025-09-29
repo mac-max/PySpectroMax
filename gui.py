@@ -4,9 +4,12 @@ import os
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import pandas as pd
+from scipy.optimize import curve_fit
+import numpy as np
 import datetime
 from PyQt5.QtWidgets import QFileDialog
-from PyQt5.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton
+from PyQt5.QtWidgets import QMainWindow, QWidget,  QHBoxLayout, QVBoxLayout, QPushButton
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtCore import QTimer, Qt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -31,11 +34,11 @@ mpl.rcParams['figure.autolayout'] = True
 class SpectrometerApp(QMainWindow):
     def __init__(self):
         super().__init__()
+        self.load_settings()
         # Lade Einstellungen, falls vorhanden:
         self.camera = Camera()
         self.initUI()
         self.setStyleSheet("background-color: #1e1e1e; color: white;")
-        self.camera = Camera()
         self.integration_time = 30  # Standard-Belichtungszeit in ms
         self.auto_scale_intensity = True
         self.fixed_intensity_max = 255
@@ -50,22 +53,31 @@ class SpectrometerApp(QMainWindow):
         self.hdr_num_frames = 5
         self.relative_spectrum_enabled = False  # Quotientenbildung aktiv?
         self.normalize_relative_spectrum = False  # Quotient normieren (max = 1)?
+        self.canvas.mpl_connect("button_press_event", self.on_fit_click)
+        self.canvas.mpl_connect("scroll_event", self.on_scroll_zoom)
+        self.fit_text = None
+        self.fit_line, = self.ax.plot([], [], "g--", label="Fit")
+        self.peak_marker, = self.ax.plot([], [], "rx", markersize=10)
+
         self.reference_spectrum = None  # Hier wird das aufgenommene Referenzspektrum gespeichert
         self.fps = 1#self.camera.cap.get(cv2.CAP_PROP_FPS) # Aktuelle FPS, falls keine Einstellung vorhanden ist
         self.roi = (0, 470, 1920, 150)
         self.setWindowTitle("USB-Spektrometer GUI")
         self.setGeometry(100, 100, 900, 600)
-        self.load_settings()
+
+
 
     def initUI(self):
         main_layout = QHBoxLayout()
         self.bg_color = self.palette().color(self.backgroundRole()).name()
-
         # Linke Seite: Button-Bereich
         button_layout = QVBoxLayout()
         self.btn_capture = QPushButton("CSV speichern")
         self.btn_capture.clicked.connect(self.capture_spectrum)
         button_layout.addWidget(self.btn_capture)
+        self.btn_load_csv = QPushButton("CSV laden")
+        self.btn_load_csv.clicked.connect(self.load_csv_and_display)
+        button_layout.addWidget(self.btn_load_csv)
         self.btn_save_image = QPushButton("JPG speichern")
         self.btn_save_image.clicked.connect(self.save_spectrum_as_jpg)
         button_layout.addWidget(self.btn_save_image)
@@ -114,6 +126,24 @@ class SpectrometerApp(QMainWindow):
         dialog = RelativeSpectrumDialog(self)
         dialog.exec_()
 
+    def load_csv_and_display(self):
+        filename, _ = QFileDialog.getOpenFileName(self, "CSV-Datei laden", "", "CSV Files (*.csv)")
+        if filename:
+            df = pd.read_csv(filename)
+            if "Wavelength" in df.columns and "Intensity" in df.columns:
+                wavelength = df["Wavelength"].to_numpy()
+                intensity = df["Intensity"].to_numpy()
+                self.loaded_spectrum = (wavelength, intensity)
+                self.live_update = False
+                self.ax.clear()
+                self.ax.plot(wavelength, intensity, color='cyan')
+                self.ax.set_xlabel("Wellenlänge (nm)")
+                self.ax.set_ylabel("Intensität")
+                self.canvas.draw()
+                print(f"[INFO] CSV {filename} geladen und angezeigt.")
+            else:
+                print("[FEHLER] CSV hat nicht die erwarteten Spalten (Wavelength, Intensity).")
+
     def load_settings(self):
         if os.path.exists("settings.json"):
             with open("settings.json", "r") as f:
@@ -128,6 +158,10 @@ class SpectrometerApp(QMainWindow):
             self.update_interval = settings.get("update_interval", 200)
             # Kameraeinstellungen:
             cam_settings = settings.get("camera", {})
+            chosen_cam = cam_settings.get("chosen_cam", None)
+            self.camera = Camera(chosen_cam=chosen_cam)
+
+            #self.camera.cams = cam_settings.get("cams", self.camera.cams)
             self.camera.exposure = cam_settings.get("exposure", self.camera.exposure)
             # self.camera.fps = cam_settings.get("fps", self.camera.fps)
             self.camera.gain = cam_settings.get("gain", self.camera.gain)
@@ -138,6 +172,7 @@ class SpectrometerApp(QMainWindow):
             self.camera.hdr_max_exposure = cam_settings.get("hdr_max_exposure", self.camera.hdr_max_exposure)
             self.camera.sensitivity_factors = cam_settings.get("sensitivity_factors", self.camera.sensitivity_factors)
             self.camera.apply_settings()
+
             print("Einstellungen geladen.")
         else:
             print("Keine gespeicherten Einstellungen gefunden.")
@@ -153,6 +188,8 @@ class SpectrometerApp(QMainWindow):
             "update_interval": self.update_interval,
             # Kameraeinstellungen:
             "camera": {
+                "cams": self.camera.cams,
+                "chosen_cam": getattr(self.camera, "chosen_cam", None),
                 "exposure": self.camera.exposure,
                 "fps": self.camera.fps,
                 "gain": self.camera.gain,
@@ -178,6 +215,96 @@ class SpectrometerApp(QMainWindow):
         if self.live_update:
             self.timer.setInterval(self.integration_time if not self.low_res_mode else self.update_interval)
             self.timer.start()
+
+    def gauss(self, x, A, x0, sigma, C):
+        return A * np.exp(-0.5 * ((x - x0) / sigma) ** 2) + C
+
+    def fwhm_from_sigma(self, sigma):
+        return 2.354820045 * sigma
+
+    def on_fit_click(self, event):
+        if event.inaxes != self.ax or event.xdata is None:
+            return
+        self.live_update = False
+        if hasattr(self, "loaded_spectrum") and self.loaded_spectrum is not None:
+            xdata, ydata = self.loaded_spectrum
+            plotColor = "cyan"
+        else:
+            if not hasattr(self, "spectrum_line"):
+                print("[FEHLER] Kein Spektrum vorhanden.")
+                return
+            xdata = np.arange(len(self.spectrum_line))
+            ydata = self.spectrum_line
+            plotColor = "white"
+
+        x_click = float(event.xdata)
+        idx = np.abs(xdata - x_click).argmin()
+        y_click = float(ydata[idx])
+
+        mask = (xdata >= x_click - 20) & (xdata <= x_click + 20)
+        if np.count_nonzero(mask) < 5:
+            print("[WARNUNG] Zu wenige Punkte im Fenster.")
+            return
+        x = xdata[mask]
+        y = ydata[mask]
+        xlabel = "Wellenlänge (nm)"
+
+        try:
+            p0 = [y.max() - y.min(), x[np.argmax(y)], (x.max() - x.min()) / 6, np.median(y)]
+            popt, _ = curve_fit(self.gauss, x, y, p0=p0, maxfev=2000)
+            A, x0, sigma, C = popt
+            x_fit = np.linspace(x.min(), x.max(), 200)
+            y_fit = self.gauss(x_fit, *popt)
+            y0 = self.gauss(x0, *popt)
+            self.fit_line.set_data(x_fit, y_fit)
+            self.peak_marker.set_data([x0], [self.gauss(x0, *popt)])
+            fwhm = self.fwhm_from_sigma(sigma)
+            txt = f"Peak: {x0:.2f}, FWHM: {fwhm:.2f}"
+        except Exception as e:
+            coeffs = np.polyfit(x, y, 2)
+            a, b, c = coeffs
+            x0 = -b / (2 * a)
+            y0 = np.polyval(coeffs, x0)
+            self.fit_line.set_data([], [])
+            self.peak_marker.set_data([x0], [y0])
+            txt = f"Peak (Parabel): {x0:.2f}"
+
+        if self.fit_text:
+            self.fit_text.set_text("")
+
+        self.fit_text = self.ax.text(0.02, 0.95, txt, transform=self.ax.transAxes,
+                                     va="top", color="yellow")
+        self.ax.clear()
+        self.ax.plot(xdata, ydata, color=plotColor, label="Spektrum")
+        if len(x_fit) > 0:
+            self.ax.plot(x_fit, y_fit, "g--", label="Fit")
+        self.ax.plot([x0], [y0], "rx", label="Peak")
+
+        self.ax.set_xlabel(xlabel)
+        self.ax.set_ylabel("Intensität")
+        self.ax.set_title("Spektrum mit Fit")
+        self.ax.legend()
+
+        # Text aktualisieren
+        self.fit_text.set_text(txt)
+
+        self.ax.legend()
+        self.canvas.draw()
+
+    def on_scroll_zoom(self, event):
+        if event.inaxes != self.ax or event.xdata is None:
+            return
+        xmin, xmax = self.ax.get_xlim()
+        xr = xmax - xmin
+        factor = 1.2 if event.button == "up" else 1 / 1.2
+        new_w = xr / factor
+        rel = (event.xdata - xmin) / xr
+        new_xmin = event.xdata - new_w * rel
+        new_xmax = event.xdata + new_w * (1 - rel)
+        self.ax.set_xlim(new_xmin, new_xmax)
+        self.ax.relim()
+        self.ax.autoscale_view(scaley=True)
+        self.canvas.draw()
 
     def save_spectrum_to_csv(self):
         # Stelle sicher, dass ein Spektrum (self.spectrum_line) vorliegt:
@@ -260,6 +387,7 @@ class SpectrometerApp(QMainWindow):
         self.live_update = not self.live_update
         if self.live_update:
             self.timer.start(self.integration_time)
+            self.loaded_spectrum = None
         else:
             self.timer.stop()
 
